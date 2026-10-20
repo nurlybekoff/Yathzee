@@ -1,0 +1,21 @@
+# Build output
+bin/
+obj/
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+
+# SQLite runtime artefacts (created next to the .exe)
+*.db
+*.db-shm
+*.db-wal
+
+# Publish output
+publish/
+
+# OS noise
+.DS_Store
+Thumbs.db

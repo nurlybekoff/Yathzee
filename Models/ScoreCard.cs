@@ -20,5 +20,5 @@ public class ScoreCard
     public bool IsComplete => Scores.Values.All(v => v.HasValue);
     public int Total => Scores.Values.Sum(v => v ?? 0);
 
-    public IEnumerable<Category> AvailableCategories => Scores.Where(kv => !kv.Value.HasValue).Select(kv => kv.key);
+    public IEnumerable<Category> AvailableCategories => Scores.Where(kv => !kv.Value.HasValue).Select(kv => kv.Key);
 }

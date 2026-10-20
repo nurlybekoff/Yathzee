@@ -8,6 +8,6 @@ public class Player
     public Player(string name, bool isAI = false)
     {
         Name = name;
-        IsAI - isAI;
+        IsAI = isAI;
     }
 }
