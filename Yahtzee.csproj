@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
+    <RootNamespace>Yahtzee</RootNamespace>
+  </PropertyGroup>
+  <PropertyGroup>
+  <!-- change to PostgreSQL -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0">
+  </PropertyGroup>
+</Project>
