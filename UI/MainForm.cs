@@ -457,6 +457,24 @@ private void AIStep()
         MessageBox.Show(this, "Top 5 highest scores:\n\n" + msg, "High Scores");
     }
 
+    private void OnPlayerHighScores(object? sender, EventArgs e)
+{
+    string? name = Microsoft.VisualBasic.Interaction.InputBox(
+        "Enter the player name whose scores you want to view:",
+        "Player High Scores",
+        "");
+    if (string.IsNullOrWhiteSpace(name)) return;
+
+    var top = _database.GetTopScoresForPlayer(name.Trim(), 5);
+    string msg = top.Count == 0
+        ? $"No scores recorded for '{name.Trim()}'."
+        : string.Join("\n", top.Select((t, i) => $"{i + 1}. {t.Score}  ({t.PlayedAt:d})"));
+
+    MessageBox.Show(this,
+        $"Top 5 scores for {name.Trim()}:\n\n{msg}",
+        "Player High Scores");
+}
+
     // ---------- Exit / end ----------
 
     private void OnExit(object? sender, EventArgs e) => Close();

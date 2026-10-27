@@ -12,6 +12,7 @@ partial class MainForm
     private ToolStripMenuItem saveItem = null!;
     private ToolStripMenuItem loadItem = null!;
     private ToolStripMenuItem highScoresItem = null!;
+    private ToolStripMenuItem playerHighScoresItem = null!;
     private ToolStripMenuItem exitItem = null!;
 
     private FlowLayoutPanel scoreboard = null!;
@@ -45,19 +46,22 @@ partial class MainForm
         saveItem = new ToolStripMenuItem("Save Game...");
         loadItem = new ToolStripMenuItem("Load Game...");
         highScoresItem = new ToolStripMenuItem("High Scores...");
+        playerHighScoresItem = new ToolStripMenuItem("Player High Scores..."); 
         exitItem = new ToolStripMenuItem("Exit");
 
         newGameItem.Click    += OnNewGame;
         saveItem.Click       += OnSave;
         loadItem.Click       += OnLoad;
         highScoresItem.Click += OnHighScores;
+        playerHighScoresItem.Click += OnPlayerHighScores; 
         exitItem.Click       += OnExit;
 
         gameMenu.DropDownItems.AddRange(new ToolStripItem[]
         {
             newGameItem, new ToolStripSeparator(),
             saveItem, loadItem, new ToolStripSeparator(),
-            highScoresItem, new ToolStripSeparator(), exitItem
+            highScoresItem, playerHighScoresItem, new ToolStripSeparator(),       // ← added item
+            exitItem
         });
         menuStrip.Items.Add(gameMenu);
 
