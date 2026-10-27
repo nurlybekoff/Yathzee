@@ -9,6 +9,8 @@ namespace Yahtzee.UI;
 public partial class MainForm : Form
 {
     private readonly GameManager _manager = new();
+    private Category? _selectedCategory = null;
+    private readonly Dictionary<Category, Panel> _categoryRows = new();
     private readonly GameDatabase _database = new();
     private readonly ComputerPlayer _ai = new();
     private string? _savePath;
@@ -17,6 +19,7 @@ public partial class MainForm : Form
     public MainForm()
     {
         InitializeComponent();
+        BuildCategoryMenu();  
         UpdateUI();
     }
 
@@ -51,12 +54,13 @@ public partial class MainForm : Form
     private void UpdateUI()
 {
     UpdateScoreboard();
+    RefreshCategoryMenu();     // ← replaces the old dgvScores section
 
     if (_manager.Game is null)
     {
         lblPlayer.Text = "Player: -";
-        lblRolls.Text = "Rolls left: -";
-        lblRound.Text = "Round: -";
+        lblRolls.Text  = "Rolls left: -";
+        lblRound.Text  = "Round: -";
         lblStatus.Text = "No game — start a new game.";
         for (int i = 0; i < 5; i++)
         {
@@ -66,7 +70,6 @@ public partial class MainForm : Form
         }
         btnRoll.Enabled = false;
         btnScore.Enabled = false;
-        dgvScores.Rows.Clear();
         return;
     }
 
@@ -74,7 +77,9 @@ public partial class MainForm : Form
     lblPlayer.Text = $"Player: {g.CurrentPlayer.Name}{(g.CurrentPlayer.IsAI ? " (AI)" : "")}";
     lblRolls.Text  = $"Rolls left: {g.RollsLeft}";
     lblRound.Text  = $"Round: {g.Round}/13";
-    lblStatus.Text = g.CurrentPlayer.IsAI ? "AI thinking..." : "Click a die to hold/unhold it.";
+    lblStatus.Text = g.CurrentPlayer.IsAI
+        ? "AI thinking..."
+        : "Click a die to hold/unhold. Select a category, then Score.";
 
     bool interactive = !g.CurrentPlayer.IsAI;
     for (int i = 0; i < 5; i++)
@@ -86,26 +91,11 @@ public partial class MainForm : Form
     }
 
     btnRoll.Enabled  = interactive && g.RollsLeft > 0;
-    btnScore.Enabled = interactive && g.RollsLeft < 3;
+    btnScore.Enabled = interactive && g.RollsLeft < 3 && _selectedCategory.HasValue;
 
-    var card = g.CurrentPlayer.ScoreCard;
-    var dice = g.Dice.Values;
-    var selectedCat = dgvScores.SelectedRows.Count > 0
-        ? dgvScores.SelectedRows[0].Cells[0].Value?.ToString()
-        : null;
-
-    dgvScores.Rows.Clear();
-    foreach (var cat in card.AvailableCategories)
-    {
-        int preview = ScoreCalculator.Calculate(cat, dice);
-        int idx = dgvScores.Rows.Add(cat.ToString(), preview);
-        if (selectedCat == cat.ToString()) dgvScores.Rows[idx].Selected = true;
-    }
-    // Re-trigger the AI whenever it's their turn and we're not mid-animation.
-// Note: NOT gated on RollsLeft > 0, because the AI still has to score
-// once RollsLeft hits 0. AIStep handles the "no rolls left → score" case.
-if (g.CurrentPlayer.IsAI && !_isAnimating)
-    MaybeRunAI();
+    // Re-trigger AI as before
+    if (g.CurrentPlayer.IsAI && !_isAnimating)
+        MaybeRunAI();
 }
 
 private bool _isAnimating = false;
@@ -140,6 +130,165 @@ private async void AnimateRoll()
     }
 }
 
+// ═══════════════ Category menu: build / refresh / click ═══════════════
+
+private void BuildCategoryMenu()
+{
+    categoryPanel.Controls.Clear();
+    _categoryRows.Clear();
+
+    AddSectionHeader("UPPER SECTION");
+    foreach (var c in new[] { Category.Aces, Category.Twos, Category.Threes,
+                              Category.Fours, Category.Fives, Category.Sixes })
+        AddCategoryRow(c);
+
+    AddSeparator();
+
+    AddSectionHeader("LOWER SECTION");
+    foreach (var c in new[] { Category.ThreeOfAKind, Category.FourOfAKind, Category.FullHouse,
+                              Category.SmallStraight, Category.LargeStraight,
+                              Category.Yahtzee, Category.Chance })
+        AddCategoryRow(c);
+}
+
+private void AddSectionHeader(string text)
+{
+    var lbl = new Label
+    {
+        Text = text,
+        Width = 830,
+        Height = 22,
+        Font = new Font("Segoe UI", 8, FontStyle.Bold),
+        ForeColor = Color.FromArgb(110, 110, 110),
+        TextAlign = ContentAlignment.BottomLeft,
+        Margin = new Padding(4, 8, 0, 2)
+    };
+    categoryPanel.Controls.Add(lbl);
+}
+
+private void AddSeparator()
+{
+    var line = new Panel
+    {
+        Width = 830,
+        Height = 1,
+        BackColor = Color.FromArgb(190, 190, 190),
+        Margin = new Padding(4, 6, 0, 6)
+    };
+    categoryPanel.Controls.Add(line);
+}
+
+private void AddCategoryRow(Category cat)
+{
+    var row = new Panel
+    {
+        Width = 830,
+        Height = 28,
+        BackColor = Color.White,
+        Cursor = Cursors.Hand,
+        Margin = new Padding(4, 1, 0, 1),
+        Tag = cat
+    };
+
+    var nameLbl = new Label
+    {
+        Text = FormatCategoryName(cat),
+        Left = 12, Top = 4, Width = 600, Height = 22,
+        Font = new Font("Segoe UI", 10),
+        AutoSize = false,
+        BackColor = Color.Transparent
+    };
+
+    var scoreLbl = new Label
+    {
+        Name = "ScoreLabel",
+        Text = "",
+        Left = 720, Top = 4, Width = 96, Height = 22,
+        Font = new Font("Segoe UI", 10, FontStyle.Bold),
+        TextAlign = ContentAlignment.MiddleRight,
+        AutoSize = false,
+        BackColor = Color.Transparent
+    };
+
+    row.Controls.Add(nameLbl);
+    row.Controls.Add(scoreLbl);
+
+    EventHandler onClick = (_, _) => SelectCategory(cat);
+    row.Click      += onClick;
+    nameLbl.Click  += onClick;
+    scoreLbl.Click += onClick;
+
+    categoryPanel.Controls.Add(row);
+    _categoryRows[cat] = row;
+}
+
+private void SelectCategory(Category cat)
+{
+    if (_manager.Game is null) return;
+    if (_manager.Game.CurrentPlayer.IsAI) return;
+    if (_manager.Game.RollsLeft >= 3) return;               // must roll first
+    if (_manager.Game.CurrentPlayer.ScoreCard.IsUsed(cat)) return;
+
+    _selectedCategory = cat;
+    RefreshCategoryMenu();
+    btnScore.Enabled = true;
+}
+
+private void RefreshCategoryMenu()
+{
+    var card = _manager.Game?.CurrentPlayer.ScoreCard;
+    var dice = _manager.Game?.Dice.Values ?? Array.Empty<int>();
+    bool canScore = _manager.Game is not null
+                 && !_manager.Game.CurrentPlayer.IsAI
+                 && _manager.Game.RollsLeft < 3;
+
+    foreach (var (cat, row) in _categoryRows)
+    {
+        var nameLbl  = (Label)row.Controls[0];
+        var scoreLbl = (Label)row.Controls[1];
+
+        if (card is null || card.IsUsed(cat))
+        {
+            // Filled (or no game): greyed, shows final score
+            scoreLbl.Text = card?.GetScore(cat)?.ToString() ?? "";
+            row.BackColor = Color.FromArgb(232, 232, 232);
+            nameLbl.ForeColor = Color.Gray;
+            scoreLbl.ForeColor = Color.Gray;
+            row.Cursor = Cursors.Default;
+        }
+        else if (_selectedCategory == cat)
+        {
+            // Selected: blue
+            int preview = ScoreCalculator.Calculate(cat, dice);
+            scoreLbl.Text = preview.ToString();
+            row.BackColor = Color.FromArgb(154, 194, 230);
+            nameLbl.ForeColor = Color.Black;
+            scoreLbl.ForeColor = Color.Black;
+            row.Cursor = canScore ? Cursors.Hand : Cursors.Default;
+        }
+        else
+        {
+            // Available: white with black preview
+            int preview = ScoreCalculator.Calculate(cat, dice);
+            scoreLbl.Text = preview.ToString();
+            row.BackColor = Color.White;
+            nameLbl.ForeColor = Color.Black;
+            scoreLbl.ForeColor = Color.Black;
+            row.Cursor = canScore ? Cursors.Hand : Cursors.Default;
+        }
+    }
+}
+
+private static string FormatCategoryName(Category cat) => cat switch
+{
+    Category.ThreeOfAKind  => "Three of a Kind",
+    Category.FourOfAKind   => "Four of a Kind",
+    Category.FullHouse     => "Full House",
+    Category.SmallStraight => "Small Straight",
+    Category.LargeStraight => "Large Straight",
+    _                      => cat.ToString()
+};
+
     // ---------- Human actions ----------
 
     private void OnNewGame(object? sender, EventArgs e)
@@ -148,6 +297,7 @@ private async void AnimateRoll()
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
 
         _manager.NewGame(dlg.Players);
+        _selectedCategory = null;
         _savePath = null;
         _dirty = false;
         UpdateUI();
@@ -171,20 +321,19 @@ private async void AnimateRoll()
     }
 
     private void OnScore(object? sender, EventArgs e)
+{
+    if (_manager.Game is null) return;
+    if (_selectedCategory is not Category cat)
     {
-        if (_manager.Game is null || dgvScores.SelectedRows.Count == 0)
-        {
-            MessageBox.Show("Select a scoring category first.", "Score");
-            return;
-        }
-
-        var catName = dgvScores.SelectedRows[0].Cells[0].Value?.ToString();
-        if (!Enum.TryParse<Category>(catName, out var cat)) return;
-
-        int score = ScoreCalculator.Calculate(cat, _manager.Game.Dice.Values);
-        _manager.SelectScore(cat, score);
-        AfterTurn();
+        MessageBox.Show("Click a category on the scorecard first.", "Score");
+        return;
     }
+
+    int score = ScoreCalculator.Calculate(cat, _manager.Game.Dice.Values);
+    _manager.SelectScore(cat, score);
+    _selectedCategory = null;
+    AfterTurn();
+}
 
     private void AfterTurn()
     {
@@ -250,6 +399,7 @@ private void AIStep()
         {
             var g = SaveGameManager.Load(dlg.FileName);
             _manager.LoadGame(g);
+            _selectedCategory = null;
             _savePath = dlg.FileName;
             _dirty = false;
             UpdateUI();
