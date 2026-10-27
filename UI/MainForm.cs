@@ -24,21 +24,19 @@ public partial class MainForm : Form
     private void UpdateScoreboard()
 {
     scoreboard.Controls.Clear();
-
     if (_manager.Game is null) return;
 
     for (int i = 0; i < _manager.Game.Players.Count; i++)
     {
         var player = _manager.Game.Players[i];
         bool isActive = i == _manager.Game.CurrentPlayerIndex;
-        bool isWinner = _manager.Game.IsGameOver;
 
         var lbl = new Label
         {
             Text = $"{player.Name}{(player.IsAI ? " (AI)" : "")}:  {player.ScoreCard.Total}",
-            AutoSize = false,
-            Width = 140,
-            Height = 34,
+            AutoSize = true,
+            MinimumSize = new Size(140, 34),
+            Padding = new Padding(12, 6, 12, 6),
             TextAlign = ContentAlignment.MiddleCenter,
             Font = new Font("Segoe UI", 10, FontStyle.Bold),
             BackColor = isActive ? Color.FromArgb(70, 130, 180) : Color.FromArgb(230, 230, 230),
@@ -103,6 +101,40 @@ public partial class MainForm : Form
         int idx = dgvScores.Rows.Add(cat.ToString(), preview);
         if (selectedCat == cat.ToString()) dgvScores.Rows[idx].Selected = true;
     }
+    if (g.CurrentPlayer.IsAI && g.RollsLeft > 0 && !_isAnimating)
+    MaybeRunAI();
+}
+
+private bool _isAnimating = false;
+
+private async void AnimateRoll()
+{
+    if (_isAnimating) return;
+    if (_manager.Game is null) return;
+    if (!_manager.RollDice()) return;
+
+    _isAnimating = true;
+    btnRoll.Enabled = false;
+
+    try
+    {
+        // Freeze the held-dice state so we only flicker the ones being rolled.
+        var heldStatus = _manager.Game.Dice.Dice.Select(d => d.Held).ToArray();
+
+        for (int frame = 0; frame < 8; frame++)
+        {
+            for (int i = 0; i < 5; i++)
+                if (!heldStatus[i])
+                    diceButtons[i].Text = Random.Shared.Next(1, 7).ToString();
+            await Task.Delay(40);
+        }
+    }
+    finally
+    {
+        _isAnimating = false;
+        _dirty = true;
+        UpdateUI();
+    }
 }
 
     // ---------- Human actions ----------
@@ -120,11 +152,10 @@ public partial class MainForm : Form
     }
 
     private void OnRoll(object? sender, EventArgs e)
-    {
-        if (!_manager.RollDice()) return;
-        _dirty = true;
-        UpdateUI();
-    }
+{
+    if (_manager.Game is null || _manager.Game.RollsLeft <= 0) return;
+    AnimateRoll();
+}
 
     private void OnDieClick(object? sender, EventArgs e)
     {
@@ -173,30 +204,21 @@ public partial class MainForm : Form
     }
 
     private void AIStep()
+{
+    if (_manager.Game is null || !_manager.Game.CurrentPlayer.IsAI) return;
+    var g = _manager.Game;
+
+    if (g.RollsLeft > 0)
     {
-        if (_manager.Game is null || !_manager.Game.CurrentPlayer.IsAI) return;
-        var g = _manager.Game;
-
-        if (g.RollsLeft > 0)
-        {
-            _ai.ChooseDiceToHold(g.Dice);
-            _manager.RollDice();
-            _dirty = true;
-            UpdateUI();
-
-            if (g.RollsLeft > 0)
-            {
-                var t = new System.Windows.Forms.Timer { Interval = 500 };
-                t.Tick += (_, _) => { t.Stop(); AIStep(); };
-                t.Start();
-                return;
-            }
-        }
-
-        var chosen = _ai.ChooseCategory(g.Dice.Values, g.CurrentPlayer.ScoreCard);
-        _manager.SelectScore(chosen, ScoreCalculator.Calculate(chosen, g.Dice.Values));
-        AfterTurn();
+        _ai.ChooseDiceToHold(g.Dice);
+        AnimateRoll();
+        return;   // AnimateRoll's UpdateUI won't re-run AI; the timer below does
     }
+
+    var chosen = _ai.ChooseCategory(g.Dice.Values, g.CurrentPlayer.ScoreCard);
+    _manager.SelectScore(chosen, ScoreCalculator.Calculate(chosen, g.Dice.Values));
+    AfterTurn();
+}
 
     // ---------- Save / Load ----------
 
