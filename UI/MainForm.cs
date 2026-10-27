@@ -101,7 +101,10 @@ public partial class MainForm : Form
         int idx = dgvScores.Rows.Add(cat.ToString(), preview);
         if (selectedCat == cat.ToString()) dgvScores.Rows[idx].Selected = true;
     }
-    if (g.CurrentPlayer.IsAI && g.RollsLeft > 0 && !_isAnimating)
+    // Re-trigger the AI whenever it's their turn and we're not mid-animation.
+// Note: NOT gated on RollsLeft > 0, because the AI still has to score
+// once RollsLeft hits 0. AIStep handles the "no rolls left → score" case.
+if (g.CurrentPlayer.IsAI && !_isAnimating)
     MaybeRunAI();
 }
 
@@ -203,18 +206,20 @@ private async void AnimateRoll()
         timer.Start();
     }
 
-    private void AIStep()
+private void AIStep()
 {
     if (_manager.Game is null || !_manager.Game.CurrentPlayer.IsAI) return;
+    if (_isAnimating) return;
     var g = _manager.Game;
 
     if (g.RollsLeft > 0)
     {
         _ai.ChooseDiceToHold(g.Dice);
-        AnimateRoll();
-        return;   // AnimateRoll's UpdateUI won't re-run AI; the timer below does
+        AnimateRoll();          // UpdateUI in AnimateRoll's finally re-fires MaybeRunAI
+        return;
     }
 
+    // RollsLeft == 0 → score now
     var chosen = _ai.ChooseCategory(g.Dice.Values, g.CurrentPlayer.ScoreCard);
     _manager.SelectScore(chosen, ScoreCalculator.Calculate(chosen, g.Dice.Values));
     AfterTurn();
