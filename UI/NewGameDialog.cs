@@ -26,7 +26,7 @@ public class NewGameDialog : Form
         MaximizeBox = false; MinimizeBox = false;
 
         var lbl = new Label { Text = "Number of players:", Top = 12, Left = 10, Width = 120 };
-        _numPlayers = new NumericUpDown { Top = 10, Left = 140, Width = 60, Minimum = 1, Maximum = 6, Value = 1 };
+        _numPlayers = new NumericUpDown { Top = 10, Left = 140, Width = 60, Minimum = 1, Maximum = 5, Value = 1 };
 
         _panel = new FlowLayoutPanel
         {
