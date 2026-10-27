@@ -1,0 +1,3 @@
+Copy-Item .\Yahtzee.exe $env:TEMP\Yahtzee-standalone.exe
+Set-Location $env:TEMP
+.\Yahtzee-standalone.exe
