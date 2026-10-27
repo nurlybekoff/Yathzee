@@ -21,55 +21,89 @@ public partial class MainForm : Form
     }
 
     // ---------- UI refresh ----------
+    private void UpdateScoreboard()
+{
+    scoreboard.Controls.Clear();
+
+    if (_manager.Game is null) return;
+
+    for (int i = 0; i < _manager.Game.Players.Count; i++)
+    {
+        var player = _manager.Game.Players[i];
+        bool isActive = i == _manager.Game.CurrentPlayerIndex;
+        bool isWinner = _manager.Game.IsGameOver;
+
+        var lbl = new Label
+        {
+            Text = $"{player.Name}{(player.IsAI ? " (AI)" : "")}:  {player.ScoreCard.Total}",
+            AutoSize = false,
+            Width = 140,
+            Height = 34,
+            TextAlign = ContentAlignment.MiddleCenter,
+            Font = new Font("Segoe UI", 10, FontStyle.Bold),
+            BackColor = isActive ? Color.FromArgb(70, 130, 180) : Color.FromArgb(230, 230, 230),
+            ForeColor = isActive ? Color.White : Color.Black,
+            Margin = new Padding(4, 3, 4, 3),
+            BorderStyle = BorderStyle.FixedSingle
+        };
+        scoreboard.Controls.Add(lbl);
+    }
+}
 
     private void UpdateUI()
+{
+    UpdateScoreboard();
+
+    if (_manager.Game is null)
     {
-        if (_manager.Game is null)
-        {
-            lblPlayer.Text = "Player: -";
-            lblRolls.Text = "Rolls: -";
-            lblRound.Text = "Round: -";
-            lblStatus.Text = "No game — start a new game.";
-            for (int i = 0; i < 5; i++) { diceButtons[i].Text = ""; diceButtons[i].Enabled = false; diceButtons[i].BackColor = SystemColors.Control; }
-            btnRoll.Enabled = false;
-            btnScore.Enabled = false;
-            dgvScores.Rows.Clear();
-            return;
-        }
-
-        var g = _manager.Game;
-        lblPlayer.Text = $"Player: {g.CurrentPlayer.Name}{(g.CurrentPlayer.IsAI ? " (AI)" : "")}";
-        lblRolls.Text  = $"Rolls left: {g.RollsLeft}";
-        lblRound.Text  = $"Round: {g.Round}/13";
-        lblStatus.Text = g.CurrentPlayer.IsAI ? "AI thinking..." : "Click a die to hold/unhold it.";
-
-        bool interactive = !g.CurrentPlayer.IsAI;
+        lblPlayer.Text = "Player: -";
+        lblRolls.Text = "Rolls left: -";
+        lblRound.Text = "Round: -";
+        lblStatus.Text = "No game — start a new game.";
         for (int i = 0; i < 5; i++)
         {
-            var die = g.Dice.Dice[i];
-            diceButtons[i].Text = die.Value.ToString();
-            diceButtons[i].BackColor = die.Held ? Color.LightGreen : SystemColors.Control;
-            diceButtons[i].Enabled = interactive && g.RollsLeft > 0 && g.RollsLeft < 3;
+            diceButtons[i].Text = "";
+            diceButtons[i].Enabled = false;
+            diceButtons[i].BackColor = Color.White;
         }
-
-        btnRoll.Enabled  = interactive && g.RollsLeft > 0;
-        btnScore.Enabled = interactive && g.RollsLeft < 3;
-
-        // Score preview
-        var card = g.CurrentPlayer.ScoreCard;
-        var dice = g.Dice.Values;
-        var selectedCat = dgvScores.SelectedRows.Count > 0
-            ? dgvScores.SelectedRows[0].Cells[0].Value?.ToString()
-            : null;
-
+        btnRoll.Enabled = false;
+        btnScore.Enabled = false;
         dgvScores.Rows.Clear();
-        foreach (var cat in card.AvailableCategories)
-        {
-            int preview = ScoreCalculator.Calculate(cat, dice);
-            int idx = dgvScores.Rows.Add(cat.ToString(), preview);
-            if (selectedCat == cat.ToString()) dgvScores.Rows[idx].Selected = true;
-        }
+        return;
     }
+
+    var g = _manager.Game;
+    lblPlayer.Text = $"Player: {g.CurrentPlayer.Name}{(g.CurrentPlayer.IsAI ? " (AI)" : "")}";
+    lblRolls.Text  = $"Rolls left: {g.RollsLeft}";
+    lblRound.Text  = $"Round: {g.Round}/13";
+    lblStatus.Text = g.CurrentPlayer.IsAI ? "AI thinking..." : "Click a die to hold/unhold it.";
+
+    bool interactive = !g.CurrentPlayer.IsAI;
+    for (int i = 0; i < 5; i++)
+    {
+        var die = g.Dice.Dice[i];
+        diceButtons[i].Text = die.Value.ToString();
+        diceButtons[i].BackColor = die.Held ? Color.FromArgb(144, 222, 176) : Color.White;
+        diceButtons[i].Enabled = interactive && g.RollsLeft > 0 && g.RollsLeft < 3;
+    }
+
+    btnRoll.Enabled  = interactive && g.RollsLeft > 0;
+    btnScore.Enabled = interactive && g.RollsLeft < 3;
+
+    var card = g.CurrentPlayer.ScoreCard;
+    var dice = g.Dice.Values;
+    var selectedCat = dgvScores.SelectedRows.Count > 0
+        ? dgvScores.SelectedRows[0].Cells[0].Value?.ToString()
+        : null;
+
+    dgvScores.Rows.Clear();
+    foreach (var cat in card.AvailableCategories)
+    {
+        int preview = ScoreCalculator.Calculate(cat, dice);
+        int idx = dgvScores.Rows.Add(cat.ToString(), preview);
+        if (selectedCat == cat.ToString()) dgvScores.Rows[idx].Selected = true;
+    }
+}
 
     // ---------- Human actions ----------
 
