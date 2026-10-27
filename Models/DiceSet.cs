@@ -13,6 +13,11 @@ public class DiceSet
         foreach (var d in Dice) if (!d.Held) d.Roll();
     }
 
+    public void RollAll()       // new: rolls every die, ignores Held
+    {
+        foreach (var d in Dice) d.Roll();
+    }
+
     public void ResetHeld() {foreach (var d in Dice) d.Reset();}
 
     public int[] Values => Dice.Select(d => d.Value).ToArray();

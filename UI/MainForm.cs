@@ -15,6 +15,7 @@ public partial class MainForm : Form
     private readonly ComputerPlayer _ai = new();
     private string? _savePath;
     private bool _dirty = false;
+    private System.Windows.Forms.Timer? _aiTimer;
 
     public MainForm()
     {
@@ -157,11 +158,11 @@ private void AddSectionHeader(string text)
     {
         Text = text,
         Width = 830,
-        Height = 22,
+        Height = 18,
         Font = new Font("Segoe UI", 8, FontStyle.Bold),
         ForeColor = Color.FromArgb(110, 110, 110),
         TextAlign = ContentAlignment.BottomLeft,
-        Margin = new Padding(4, 8, 0, 2)
+        Margin = new Padding(4, 5, 0, 2)
     };
     categoryPanel.Controls.Add(lbl);
 }
@@ -173,7 +174,7 @@ private void AddSeparator()
         Width = 830,
         Height = 1,
         BackColor = Color.FromArgb(190, 190, 190),
-        Margin = new Padding(4, 6, 0, 6)
+        Margin = new Padding(4, 4, 0, 4)
     };
     categoryPanel.Controls.Add(line);
 }
@@ -183,7 +184,7 @@ private void AddCategoryRow(Category cat)
     var row = new Panel
     {
         Width = 830,
-        Height = 28,
+        Height = 24,
         BackColor = Color.White,
         Cursor = Cursors.Hand,
         Margin = new Padding(4, 1, 0, 1),
@@ -193,7 +194,7 @@ private void AddCategoryRow(Category cat)
     var nameLbl = new Label
     {
         Text = FormatCategoryName(cat),
-        Left = 12, Top = 4, Width = 600, Height = 22,
+        Left = 12, Top = 2, Width = 600, Height = 20,
         Font = new Font("Segoe UI", 10),
         AutoSize = false,
         BackColor = Color.Transparent
@@ -203,7 +204,7 @@ private void AddCategoryRow(Category cat)
     {
         Name = "ScoreLabel",
         Text = "",
-        Left = 720, Top = 4, Width = 96, Height = 22,
+        Left = 720, Top = 2, Width = 96, Height = 20,
         Font = new Font("Segoe UI", 10, FontStyle.Bold),
         TextAlign = ContentAlignment.MiddleRight,
         AutoSize = false,
@@ -347,13 +348,21 @@ private static string FormatCategoryName(Category cat) => cat switch
     // ---------- AI ----------
 
     private void MaybeRunAI()
-    {
-        if (_manager.Game is null || !_manager.Game.CurrentPlayer.IsAI) return;
+{
+    if (_manager.Game is null || !_manager.Game.CurrentPlayer.IsAI) return;
 
-        var timer = new System.Windows.Forms.Timer { Interval = 500 };
-        timer.Tick += (_, _) => { timer.Stop(); AIStep(); };
-        timer.Start();
-    }
+    // Cancel any pending AI step — only one timer may be live at a time.
+    _aiTimer?.Stop();
+    _aiTimer?.Dispose();
+
+    _aiTimer = new System.Windows.Forms.Timer { Interval = 500 };
+    _aiTimer.Tick += (_, _) =>
+    {
+        _aiTimer?.Stop();
+        AIStep();
+    };
+    _aiTimer.Start();
+}
 
 private void AIStep()
 {
@@ -361,16 +370,41 @@ private void AIStep()
     if (_isAnimating) return;
     var g = _manager.Game;
 
-    if (g.RollsLeft > 0)
+    // Defensive: if the current player's card is full but the game isn't
+    // marked over, something has gone out of sync — end the game.
+    if (g.CurrentPlayer.ScoreCard.IsComplete)
     {
-        _ai.ChooseDiceToHold(g.Dice);
-        AnimateRoll();          // UpdateUI in AnimateRoll's finally re-fires MaybeRunAI
+        g.IsGameOver = true;
+        AfterTurn();
         return;
     }
 
-    // RollsLeft == 0 → score now
+    // Roll branch
+    if (g.RollsLeft > 0)
+    {
+        _ai.ChooseDiceToHold(g.Dice);
+        AnimateRoll();
+        return;
+    }
+
+    // Score branch
     var chosen = _ai.ChooseCategory(g.Dice.Values, g.CurrentPlayer.ScoreCard);
-    _manager.SelectScore(chosen, ScoreCalculator.Calculate(chosen, g.Dice.Values));
+    if (g.CurrentPlayer.ScoreCard.IsUsed(chosen))
+    {
+        // ChooseCategory returned a category already scored (its default is
+        // Chance, which may already be used). Pick any available one.
+        var fallback = g.CurrentPlayer.ScoreCard.AvailableCategories.FirstOrDefault();
+        if (fallback == default && !g.CurrentPlayer.ScoreCard.AvailableCategories.Any())
+        {
+            g.IsGameOver = true;
+            AfterTurn();
+            return;
+        }
+        chosen = fallback;
+    }
+
+    int score = ScoreCalculator.Calculate(chosen, g.Dice.Values);
+    _manager.SelectScore(chosen, score);
     AfterTurn();
 }
 

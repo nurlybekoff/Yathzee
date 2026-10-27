@@ -17,7 +17,8 @@ public class Game
 
         RollsLeft = 3;
         Dice.ResetHeld();
+        Dice.RollAll();                    // ← new: fresh dice for the next player
 
         if (Round > 13) IsGameOver = true;
-    }    
+}
 }
