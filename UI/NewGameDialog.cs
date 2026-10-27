@@ -2,8 +2,14 @@ using Yahtzee.Models;
 
 namespace Yahtzee.UI;
 
+/// <summary>
+/// Modal dialog shown for "New Game", letting the user pick the number of
+/// players (1–6), each player's display name, and whether each player is
+/// AI-controlled. On OK, exposes the resulting list via <see cref="Players"/>.
+/// </summary>
 public class NewGameDialog : Form
 {
+    /// <summary>Populated after <see cref="Form.ShowDialog"/> returns <see cref="DialogResult.OK"/>.</summary>
     public List<Player> Players { get; } = new();
 
     private readonly NumericUpDown _numPlayers;
@@ -40,15 +46,18 @@ public class NewGameDialog : Form
         {
             Players.Clear();
             for (int i = 0; i < _nameBoxes.Count; i++)
-                Players.Add(new Player(string.IsNullOrWhiteSpace(_nameBoxes[i].Text)
-                                       ? $"Player {i + 1}"
-                                       : _nameBoxes[i].Text,
-                                       _aiChecks[i].Checked));
+                Players.Add(new Player(
+                    string.IsNullOrWhiteSpace(_nameBoxes[i].Text) ? $"Player {i + 1}" : _nameBoxes[i].Text,
+                    _aiChecks[i].Checked));
             DialogResult = DialogResult.OK;
         };
         AcceptButton = ok; CancelButton = cancel;
     }
 
+    /// <summary>
+    /// Re-creates the per-player row list to match the current value of the
+    /// numeric "number of players" control. Called whenever that control changes.
+    /// </summary>
     private void Rebuild()
     {
         _panel.Controls.Clear();

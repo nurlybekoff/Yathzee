@@ -1,5 +1,6 @@
 ﻿namespace Yahtzee;
 
+/// <summary>Application entry point. Standard WinForms bootstrap.</summary>
 internal static class Program
 {
     [STAThread]
